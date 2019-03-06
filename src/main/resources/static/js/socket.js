@@ -63,6 +63,14 @@ function connectSockJs() {
 
                 $('#btnContinue').css('visibility','visible');
             }
+
+            if(message.type === 'BETTING') {
+                $('#a').css('visibility','visible');
+                $('#b').css('visibility','visible');
+                if(event.status === 'DOUBLE') {
+                    $('#c').css('visibility','visible');
+                }
+            }
         };
 
         socket.onclose = function (event) {
@@ -81,4 +89,33 @@ $('#btnContinue').on('click', function(evt) {
 
     $('#game_box').empty();
     socket.send('continue');
+});
+
+$('#btnStart').on('click', function(evt) {
+    evt.preventDefault();
+    if (socket.readyState !== 1) return;
+
+    $('#btnStart').css('visibility','hidden');
+    socket.send('START GAME');
+});
+
+$('#a').on('click', function(evt) {
+    evt.preventDefault();
+    if (socket.readyState !== 1) return;
+
+    socket.send('BETTING:1');
+});
+
+$('#b').on('click', function(evt) {
+    evt.preventDefault();
+    if (socket.readyState !== 1) return;
+
+    socket.send('BETTING:2');
+});
+
+$('#c').on('click', function(evt) {
+    evt.preventDefault();
+    if (socket.readyState !== 1) return;
+
+    socket.send('BETTING:3');
 });

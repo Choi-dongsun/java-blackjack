@@ -5,6 +5,7 @@ import com.codesquad.blackjack.domain.Game;
 import com.codesquad.blackjack.domain.card.Deck;
 import com.codesquad.blackjack.domain.player.User;
 import com.codesquad.blackjack.domain.player.UserRepository;
+import com.codesquad.blackjack.dto.BettingDto;
 import com.codesquad.blackjack.dto.ResultDto;
 import com.codesquad.blackjack.security.WebSocketSessionUtils;
 import com.codesquad.blackjack.service.GameService;
@@ -16,7 +17,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
-import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketSession;
 
@@ -24,6 +24,10 @@ import java.io.IOException;
 
 import static com.codesquad.blackjack.MessageType.BLACKJACK;
 import static com.codesquad.blackjack.MessageType.INIT;
+import static com.codesquad.blackjack.domain.Game.DOUBLE_SELECTION;
+import static com.codesquad.blackjack.domain.Game.HIT_SELECTION;
+import static com.codesquad.blackjack.domain.Game.STAND_SELECTION;
+
 
 @Component
 public class SessionController {
@@ -47,11 +51,10 @@ public class SessionController {
         }
     }
 
-    public void startGame(WebSocketSession webSocketSession, GameSession gameSession) throws IOException {
+    public void startGame(GameSession gameSession) throws IOException {
         Game game = gameService.findById(gameSession.getGameId());
-        Deck deck = Deck.auto();
 
-        game.init(deck, 100);
+        game.init(100);
 
         for (WebSocketSession ws : gameSession.getSessions()) {
             ws.sendMessage(new TextMessage(objectMapper.writeValueAsString(game.getDealerDto(INIT))));
@@ -65,25 +68,75 @@ public class SessionController {
             }
 
             game.initializeGame();
+
+            //TODO: 질문!!
+            userRepository.save(game.getUser());
+        }
+    }
+
+    public void playerTurnGame(GameSession gameSession, int bettingChip) throws IOException {
+        Game game = gameService.findById(gameSession.getGameId());
+
+        if (game.isGameProcess()) {
+            if(game.hasGamerEnoughChip(bettingChip)) {
+                //유저에게 turn은 더블까지 보이는 상태를 만들어줘야해
+                for (WebSocketSession ws : gameSession.getSessions()) {
+                    ws.sendMessage(new TextMessage(objectMapper.writeValueAsString(new BettingDto("DOUBLE"))));
+                }
+            }
+            for (WebSocketSession ws : gameSession.getSessions()) {
+                ws.sendMessage(new TextMessage(objectMapper.writeValueAsString(new BettingDto("NONE_DOUBLE"))));
+            }
+        }
+    }
+
+    public void playerSelect(GameSession gameSession, int turn) throws IOException {
+        Game game = gameService.findById(gameSession.getGameId());
+
+
+        if (game.isGameProcess() && turn != STAND_SELECTION) {
+            game.hit();
+
+            for (WebSocketSession ws : gameSession.getSessions()) {
+                ws.sendMessage(new TextMessage(objectMapper.writeValueAsString(game.getDealerDto(INIT))));
+                ws.sendMessage(new TextMessage(objectMapper.writeValueAsString(game.getUserDto(INIT))));
+            }
+
+
+            if (game.isBurst()) {
+                game.stopGame();
+                game.initializeGame();
+                //출력해줘야됨 결과
+                return;
+            }
+
+            if (game.isBlackjack() || turn == DOUBLE_SELECTION) {
+                return;
+            }
+
+            if (turn == HIT_SELECTION) {
+                for (WebSocketSession ws : gameSession.getSessions()) {
+                    ws.sendMessage(new TextMessage(objectMapper.writeValueAsString(new BettingDto("NONE_DOUBLE"))));
+                }
+            }
         }
         game.initializeGame();
 
-        userRepository.save(game.getUser());
+    }
 
 
-
-
-
-//            playerTurnGame(game, bettingChip, deck);
-//            dealerTurnGame(game, deck);
+//    private void dealerTurnGame(GameSession gameSession) {
+//        Game game = gameService.findById(gameSession.getGameId());
 //
-//            game.initializeGame();
-//            nextGame = InputView.isContinue();
+//        while (game.isGameProcess()) {
+//            game.dealerTurn(deck.draw());
 //
-//            if(game.hasGamerNoMoney()) {
-//                OutputView.printNoChip();
-//                return;
+//            if (game.isBurst()) {
+//                game.endByPlayerWin(game.getNormalPrize());
+//                break;
 //            }
 //        }
-    }
+//    }
+
+
 }
